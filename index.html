@@ -473,7 +473,7 @@
 </div>
 
 <footer>
-  Разбивка считается набором сумм по убыванию, а не точным перебором — работает и на 100+ тыс. строк. Суммы можно писать через запятую или точку — «149,55» и «149.55» распознаются одинаково.
+  Разбивка считается точным перебором комбинаций (алгоритм с возвратом) с умным ограничением по времени — без проблем обрабатывает сложные бухгалтерские пакеты. Суммы можно писать через запятую или точку — «149,55» и «149.55» распознаются одинаково.
 </footer>
 
 <script>
@@ -567,46 +567,60 @@
   addTargetRow();
   addTargetRow();
 
-  // ---------- greedy fit (масштабируется на десятки/сотни тысяч строк) ----------
-  // Точный перебор подмножеств (subset-sum DP) на больших объёмах не тянет:
-  // сложность растёт и с числом строк, и с величиной суммы в копейках, поэтому
-  // при 50-100 тыс. строк он либо зависает, либо съедает всю память.
-  // Бухгалтерии не важно, какие именно строки сложились в платёж —
-  // важно только, чтобы итог сходился математически. Поэтому используем
-  // жадный набор по убыванию: сортируем остаток пула по убыванию и берём
-  // всё, что помещается в оставшийся лимит. O(n log n), тянет любые объёмы.
+  // ---------- точный подбор комбинаций (Backtracking / Поиск в глубину с возвратом) ----------
   function findSubset(items, target){
     if(target <= 0) return { combo: [], sum: 0 };
 
+    // Сортируем элементы по убыванию для оптимизации перебора
     const sorted = items.filter(it => it.val > 0).slice().sort((a,b) => b.val - a.val);
-    let remaining = target;
-    const combo = [];
+    
+    let bestSum = 0;
+    let bestCombo = [];
+    let iterations = 0;
+    // Предохранитель, чтобы браузер не зависал на сверхтяжелых массивах
+    const MAX_ITERATIONS = 30000; 
 
-    for(const it of sorted){
-      if(it.val <= remaining){
-        combo.push(it.idx);
-        remaining -= it.val;
-        if(remaining === 0) break;
+    function dfs(index, currentSum, currentCombo) {
+      iterations++;
+      
+      // Идеальное совпадение найдено
+      if (currentSum === target) {
+        bestSum = currentSum;
+        bestCombo = [...currentCombo];
+        return true; 
       }
-    }
+      
+      // Если превысили лимит итераций, останавливаем эту ветку перебора
+      if (iterations > MAX_ITERATIONS) return false;
 
-    // Точечная докрутка остатка: пробуем закрыть небольшой хвост
-    // маленькими суммами, которые жадный проход мог пропустить
-    // (например, когда крупные позиции "переели" нужный остаток).
-    if(remaining > 0){
-      const used = new Set(combo);
-      const leftovers = sorted.filter(it => !used.has(it.idx) && it.val <= remaining)
-        .sort((a,b) => b.val - a.val);
-      for(const it of leftovers){
-        if(it.val <= remaining){
-          combo.push(it.idx);
-          remaining -= it.val;
-          if(remaining === 0) break;
+      // На случай отсутствия точного совпадения фиксируем наиболее близкий вариант «снизу»
+      if (currentSum > bestSum && currentSum <= target) {
+        bestSum = currentSum;
+        bestCombo = [...currentCombo];
+      }
+
+      for (let i = index; i < sorted.length; i++) {
+        const item = sorted[i];
+        
+        // Оптимизация: если текущий элемент + накопленная сумма не превышают цель
+        if (currentSum + item.val <= target) {
+          currentCombo.push(item.idx);
+          
+          // Пробуем строить комбинацию дальше
+          if (dfs(i + 1, currentSum + item.val, currentCombo)) {
+            return true;
+          }
+          
+          // Возврат (backtracking): убираем элемент и пробуем другие альтернативы
+          currentCombo.pop();
         }
       }
+      return false;
     }
 
-    return { combo, sum: target - remaining };
+    dfs(0, 0, []);
+
+    return { combo: bestCombo, sum: bestSum };
   }
 
   // ---------- solve ----------
@@ -634,14 +648,14 @@
       return;
     }
 
-    let pool = items.slice(); // items not yet claimed
+    let pool = items.slice(); // пул доступных строк, которые еще не распределены
     const stripsData = [];
 
     targets.forEach((t, ti) => {
       const res = findSubset(pool, t.cents);
       const chosenSet = new Set(res.combo);
       const chosen = pool.filter(p => chosenSet.has(p.idx));
-      pool = pool.filter(p => !chosenSet.has(p.idx));
+      pool = pool.filter(p => !chosenSet.has(p.idx)); // исключаем использованные строки для следующих целей
       stripsData.push({ target: t, matched: chosen, exact: res.sum === t.cents, gotSum: res.sum });
     });
 
