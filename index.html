@@ -568,61 +568,68 @@
   addTargetRow();
 
   // ---------- точный подбор комбинаций (Backtracking / Поиск в глубину с возвратом) ----------
+ // ---------- Точный подбор (Динамическое программирование) ----------
   function findSubset(items, target){
     if(target <= 0) return { combo: [], sum: 0 };
 
-    // Сортируем элементы по убыванию для оптимизации перебора
-    const sorted = items.filter(it => it.val > 0).slice().sort((a,b) => b.val - a.val);
+    const validItems = items.filter(it => it.val > 0);
+    if(validItems.length === 0) return { combo: [], sum: 0 };
     
-    let bestSum = 0;
-    let bestCombo = [];
-    let iterations = 0;
-    // Предохранитель, чтобы браузер не зависал на сверхтяжелых массивах
-    const MAX_ITERATIONS = 30000; 
+    // Создаем карту памяти под размер целевой суммы (в копейках).
+    // Int32Array выделяет строгий блок памяти, что работает молниеносно.
+    const dp = new Int32Array(target + 1);
+    dp.fill(-1); 
+    dp[0] = -2; // Базовый случай (0 собирается без элементов)
 
-    function dfs(index, currentSum, currentCombo) {
-      iterations++;
+    let maxReachable = 0;
+
+    for (let i = 0; i < validItems.length; i++) {
+      const val = validItems[i].val;
       
-      // Идеальное совпадение найдено
-      if (currentSum === target) {
-        bestSum = currentSum;
-        bestCombo = [...currentCombo];
-        return true; 
-      }
+      // Оптимизация: идем не от самого конца массива, а от максимально возможной текущей суммы
+      const currentMax = Math.min(target, maxReachable + val);
       
-      // Если превысили лимит итераций, останавливаем эту ветку перебора
-      if (iterations > MAX_ITERATIONS) return false;
-
-      // На случай отсутствия точного совпадения фиксируем наиболее близкий вариант «снизу»
-      if (currentSum > bestSum && currentSum <= target) {
-        bestSum = currentSum;
-        bestCombo = [...currentCombo];
-      }
-
-      for (let i = index; i < sorted.length; i++) {
-        const item = sorted[i];
-        
-        // Оптимизация: если текущий элемент + накопленная сумма не превышают цель
-        if (currentSum + item.val <= target) {
-          currentCombo.push(item.idx);
-          
-          // Пробуем строить комбинацию дальше
-          if (dfs(i + 1, currentSum + item.val, currentCombo)) {
-            return true;
-          }
-          
-          // Возврат (backtracking): убираем элемент и пробуем другие альтернативы
-          currentCombo.pop();
+      // Идем в обратном порядке, чтобы элемент не использовал сам себя несколько раз
+      for (let w = currentMax; w >= val; w--) {
+        if (dp[w - val] !== -1 && dp[w] === -1) {
+          dp[w] = i; // Запоминаем индекс элемента, который привел нас к этой сумме
         }
       }
-      return false;
+      
+      maxReachable = currentMax;
+      
+      // Супер-оптимизация: если нужная сумма уже собрана — немедленно глушим цикл!
+      if (dp[target] !== -1) break; 
     }
 
-    dfs(0, 0, []);
+    // 1. Идеальный сценарий: мы смогли собрать точную сумму
+    if (dp[target] !== -1) {
+      const combo = [];
+      let curr = target;
+      while (curr > 0) {
+        const itemIdx = dp[curr];
+        combo.push(validItems[itemIdx].idx); // Достаем оригинальный ID строки
+        curr -= validItems[itemIdx].val;
+      }
+      return { combo, sum: target };
+    }
 
-    return { combo: bestCombo, sum: bestSum };
+    // 2. Если собрать ровно не вышло, идем вниз по карте памяти и берем ближайшую сумму
+    for (let w = target - 1; w > 0; w--) {
+      if (dp[w] !== -1) {
+        const combo = [];
+        let curr = w;
+        while (curr > 0) {
+          const itemIdx = dp[curr];
+          combo.push(validItems[itemIdx].idx);
+          curr -= validItems[itemIdx].val;
+        }
+        return { combo, sum: w };
+      }
+    }
+
+    return { combo: [], sum: 0 };
   }
-
   // ---------- solve ----------
   solveBtn.addEventListener('click', () => {
     const rawLines = amountsEl.value.split('\n');
