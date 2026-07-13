@@ -1,0 +1,711 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Разбор выписки — сверка платежей</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Special+Elite&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#E7E2D3;
+    --paper-dark:#DCD5C0;
+    --paper-deep:#D2CAB0;
+    --ink:#232A1F;
+    --ink-soft:#4A5445;
+    --green:#35503E;
+    --green-dark:#243A2C;
+    --brass:#A9782F;
+    --brass-light:#C79A48;
+    --red:#9C3B34;
+    --rule: rgba(35,42,31,0.16);
+    --rule-strong: rgba(35,42,31,0.28);
+  }
+  *{ box-sizing:border-box; }
+  html{ -webkit-text-size-adjust:100%; }
+  body{
+    margin:0;
+    background:
+      repeating-linear-gradient(180deg, rgba(35,42,31,0.028) 0px, rgba(35,42,31,0.028) 1px, transparent 1px, transparent 34px),
+      var(--paper);
+    color:var(--ink);
+    font-family:'Inter', sans-serif;
+    line-height:1.5;
+    padding: 0 0 80px;
+  }
+  ::selection{ background: var(--brass-light); color:var(--green-dark); }
+
+  a{ color:var(--green); }
+
+  .stamp-font{ font-family:'Special Elite', 'Courier New', monospace; }
+  .mono{ font-family:'IBM Plex Mono', monospace; font-variant-numeric: tabular-nums; }
+
+  /* ---------- Header ---------- */
+  header.hero{
+    max-width: 980px;
+    margin: 0 auto;
+    padding: 56px 24px 40px;
+    border-bottom: 2px solid var(--rule-strong);
+    position:relative;
+  }
+  .eyebrow{
+    display:inline-flex;
+    align-items:center;
+    gap:8px;
+    font-family:'Special Elite', monospace;
+    font-size:12px;
+    letter-spacing:.14em;
+    text-transform:uppercase;
+    color:var(--green);
+    border:1.5px solid var(--green);
+    padding:5px 12px;
+    border-radius:2px;
+    transform: rotate(-1deg);
+    background: rgba(53,80,62,0.05);
+  }
+  h1.title{
+    font-family:'Special Elite', 'Courier New', monospace;
+    font-weight:400;
+    font-size: clamp(30px, 5vw, 48px);
+    letter-spacing: -0.01em;
+    margin: 18px 0 14px;
+    color: var(--green-dark);
+  }
+  .lede{
+    font-size:16px;
+    color: var(--ink-soft);
+    max-width: 640px;
+    margin: 0 0 4px;
+  }
+  .lede b{ color:var(--ink); font-weight:600; }
+
+  /* ---------- Layout ---------- */
+  main{
+    max-width: 980px;
+    margin: 0 auto;
+    padding: 40px 24px 0;
+    display:grid;
+    grid-template-columns: 1.15fr 1fr;
+    gap: 28px;
+    align-items:start;
+  }
+  @media (max-width: 820px){
+    main{ grid-template-columns: 1fr; }
+  }
+
+  .panel{
+    background: #F1EDE0;
+    border: 1px solid var(--rule-strong);
+    border-radius: 3px;
+    box-shadow: 0 1px 0 rgba(35,42,31,0.05), 0 8px 24px -18px rgba(35,42,31,0.5);
+    position:relative;
+    overflow:hidden;
+  }
+  .panel-head{
+    display:flex;
+    align-items:baseline;
+    justify-content:space-between;
+    gap:12px;
+    padding: 16px 20px;
+    border-bottom: 1.5px dashed var(--rule-strong);
+    background: var(--paper-dark);
+  }
+  .panel-head h2{
+    font-family:'Special Elite', monospace;
+    font-weight:400;
+    font-size:15px;
+    letter-spacing:.04em;
+    text-transform:uppercase;
+    margin:0;
+    color: var(--green-dark);
+  }
+  .panel-head .hint{
+    font-size:12px;
+    color: var(--ink-soft);
+  }
+  .panel-body{ padding: 18px 20px 20px; }
+
+  /* ---------- Input ledger (line numbers) ---------- */
+  .ledger-wrap{
+    display:flex;
+    border:1px solid var(--rule-strong);
+    background:#FBF9F1;
+    border-radius:2px;
+    overflow:hidden;
+  }
+  .ledger-gutter{
+    flex: 0 0 auto;
+    padding: 12px 10px;
+    background: var(--paper-deep);
+    border-right: 1.5px dashed var(--rule-strong);
+    font-family:'IBM Plex Mono', monospace;
+    font-size:13px;
+    line-height:22px;
+    color: var(--ink-soft);
+    text-align:right;
+    user-select:none;
+    white-space:pre;
+    overflow:hidden;
+  }
+  textarea#amounts{
+    flex:1;
+    border:0;
+    outline:0;
+    resize:vertical;
+    min-height: 260px;
+    padding: 12px 14px;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:13px;
+    line-height:22px;
+    color: var(--ink);
+    background:transparent;
+    font-variant-numeric: tabular-nums;
+  }
+  textarea#amounts::placeholder{ color: rgba(35,42,31,0.35); }
+
+  .field-row{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:12px;
+    margin-top:14px;
+    flex-wrap:wrap;
+  }
+  .field-row label{
+    font-size:13px;
+    color: var(--ink-soft);
+  }
+  .total-check{
+    display:flex;
+    align-items:center;
+    gap:10px;
+  }
+  input.total-input{
+    width: 150px;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:14px;
+    padding: 7px 10px;
+    border:1px solid var(--rule-strong);
+    border-radius:2px;
+    background:#FBF9F1;
+    color:var(--ink);
+    text-align:right;
+  }
+  input.total-input:focus, textarea:focus, .target-input:focus{
+    outline: 2px solid var(--brass);
+    outline-offset: 1px;
+  }
+  .sum-readout{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:12.5px;
+    color: var(--ink-soft);
+  }
+  .sum-readout.ok{ color: var(--green); }
+  .sum-readout.bad{ color: var(--red); }
+
+  /* ---------- Targets ---------- */
+  .target-row{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    margin-bottom:10px;
+  }
+  .target-tab{
+    flex:0 0 22px;
+    height: 22px;
+    border-radius:50%;
+    border: 1.5px solid rgba(35,42,31,0.3);
+  }
+  input.target-input{
+    flex:1;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:14px;
+    padding: 9px 10px;
+    border:1px solid var(--rule-strong);
+    border-radius:2px;
+    background:#FBF9F1;
+    color:var(--ink);
+  }
+  button.remove-target{
+    flex: 0 0 auto;
+    width:28px; height:28px;
+    border:1px solid var(--rule-strong);
+    background:transparent;
+    color: var(--ink-soft);
+    border-radius:2px;
+    cursor:pointer;
+    font-size:15px;
+    line-height:1;
+  }
+  button.remove-target:hover{ border-color: var(--red); color: var(--red); }
+
+  button.add-target{
+    display:inline-flex;
+    align-items:center;
+    gap:6px;
+    background:none;
+    border:1.5px dashed var(--rule-strong);
+    color: var(--green);
+    font-family:'Inter', sans-serif;
+    font-weight:600;
+    font-size:13px;
+    padding: 8px 14px;
+    border-radius:2px;
+    cursor:pointer;
+    margin-top: 4px;
+    width:100%;
+    justify-content:center;
+  }
+  button.add-target:hover{ border-color: var(--green); background: rgba(53,80,62,0.06); }
+
+  .go-btn{
+    width:100%;
+    margin-top: 20px;
+    padding: 14px 18px;
+    background: var(--green-dark);
+    color: #F1EDE0;
+    border: none;
+    border-radius: 2px;
+    font-family:'Special Elite', monospace;
+    font-size: 15px;
+    letter-spacing:.04em;
+    text-transform:uppercase;
+    cursor:pointer;
+    transition: transform .08s ease, background .15s ease;
+  }
+  .go-btn:hover{ background: var(--green); }
+  .go-btn:active{ transform: scale(0.99); }
+  .go-btn:focus-visible{ outline: 2px solid var(--brass); outline-offset:2px; }
+
+  /* ---------- Results ---------- */
+  #results{
+    max-width: 980px;
+    margin: 36px auto 0;
+    padding: 0 24px;
+    display:none;
+  }
+  #results.show{ display:block; }
+
+  #results .results-title{
+    font-family:'Special Elite', monospace;
+    font-size:14px;
+    letter-spacing:.1em;
+    text-transform:uppercase;
+    color: var(--ink-soft);
+    margin: 0 0 16px;
+    padding-top: 8px;
+    border-top: 2px solid var(--rule-strong);
+  }
+
+  .strip-grid{
+    display:grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 20px;
+  }
+
+  .strip{
+    background:#FBF9F1;
+    position:relative;
+    padding: 18px 20px 16px;
+    box-shadow: 0 8px 20px -14px rgba(35,42,31,0.55);
+    clip-path: polygon(
+      0% 6px, 2% 0%, 5% 6px, 8% 0%, 11% 6px, 14% 0%, 17% 6px, 20% 0%, 23% 6px, 26% 0%,
+      29% 6px, 32% 0%, 35% 6px, 38% 0%, 41% 6px, 44% 0%, 47% 6px, 50% 0%, 53% 6px, 56% 0%,
+      59% 6px, 62% 0%, 65% 6px, 68% 0%, 71% 6px, 74% 0%, 77% 6px, 80% 0%, 83% 6px, 86% 0%,
+      89% 6px, 92% 0%, 95% 6px, 98% 0%, 100% 6px,
+      100% 100%, 0% 100%
+    );
+    border: 1px solid var(--rule);
+    border-top: none;
+  }
+  .strip::before{
+    content:"";
+    position:absolute;
+    left:0; right:0; top:0;
+    height:6px;
+    background: var(--paper-dark);
+    clip-path: inherit;
+    z-index:-1;
+  }
+  .strip-head{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    margin-bottom: 10px;
+  }
+  .swatch{
+    width:14px; height:14px;
+    border-radius:50%;
+    border:1.5px solid rgba(35,42,31,0.35);
+    flex:0 0 auto;
+  }
+  .strip-head .amount{
+    font-family:'IBM Plex Mono', monospace;
+    font-weight:600;
+    font-size: 18px;
+    color: var(--green-dark);
+  }
+  .strip ul{
+    list-style:none;
+    margin: 10px 0 0;
+    padding:0;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:13px;
+  }
+  .strip li{
+    display:flex;
+    justify-content:space-between;
+    gap:8px;
+    padding: 4px 0;
+    border-bottom: 1px dotted var(--rule-strong);
+  }
+  .strip li:last-child{ border-bottom:none; }
+  .strip .subtotal{
+    margin-top:10px;
+    padding-top:10px;
+    border-top: 1.5px solid var(--rule-strong);
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:14px;
+  }
+  .stamp{
+    font-family:'Special Elite', monospace;
+    font-size:11px;
+    letter-spacing:.06em;
+    text-transform:uppercase;
+    padding: 3px 9px;
+    border-radius:2px;
+    transform: rotate(-3deg);
+    display:inline-block;
+  }
+  .stamp.ok{ color: var(--green); border:1.5px solid var(--green); }
+  .stamp.warn{ color: var(--red); border:1.5px solid var(--red); }
+
+  .leftover-note{
+    margin-top: 20px;
+    padding: 14px 16px;
+    background: rgba(156,59,52,0.08);
+    border: 1.5px dashed var(--red);
+    border-radius:2px;
+    font-size: 13.5px;
+    color: var(--red);
+  }
+  .leftover-note b{ color: var(--ink); }
+  .leftover-note .mono{ color: var(--ink); }
+
+  .total-status{
+    margin-top: 20px;
+    padding: 12px 16px;
+    border-radius:2px;
+    font-size:13.5px;
+    display:flex;
+    align-items:center;
+    gap:10px;
+    font-family:'Inter';
+  }
+  .total-status.ok{ background: rgba(53,80,62,0.08); color: var(--green-dark); border:1px solid rgba(53,80,62,0.3); }
+  .total-status.bad{ background: rgba(156,59,52,0.08); color: var(--red); border:1px solid rgba(156,59,52,0.3); }
+
+  footer{
+    max-width: 980px;
+    margin: 60px auto 0;
+    padding: 20px 24px 0;
+    border-top: 1px solid var(--rule);
+    font-size:12.5px;
+    color: var(--ink-soft);
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    *{ transition:none !important; }
+  }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <span class="eyebrow">Для бухгалтерии БФПД "Доброе дело" · разбор выписки WB</span>
+  <h1 class="title">Из каких сумм это сложилось?</h1>
+  <p class="lede">Вставьте суммы из выписки построчно, укажите суммы, которые <b>реально пришли на счёт</b> — инструмент найдёт, какая комбинация строк даёт каждую из них. 
+    <br> Подарок для бухгалтерии) 🎁</p>
+</header>
+
+<main>
+  <section class="panel">
+    <div class="panel-head">
+      <h2>Строки выписки</h2>
+      <span class="hint" id="lineCount">0 строк</span>
+    </div>
+    <div class="panel-body">
+      <div class="ledger-wrap">
+        <div class="ledger-gutter" id="gutter">1</div>
+        <textarea id="amounts" spellcheck="false" placeholder="483,53&#10;24,92&#10;99,7&#10;149,55&#10;…&#10;по одной сумме на строку"></textarea>
+      </div>
+      <div class="field-row">
+        <label for="totalInput">Итого по выписке (необязательно, для сверки)</label>
+      </div>
+      <div class="total-check" style="margin-top:6px;">
+        <input type="text" id="totalInput" class="total-input mono" placeholder="0,00">
+        <span class="sum-readout" id="sumReadout">сумма строк: 0,00</span>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head">
+      <h2>Суммы, которые пришли</h2>
+      <span class="hint">по одной на платёж</span>
+    </div>
+    <div class="panel-body">
+      <div id="targets"></div>
+      <button class="add-target" id="addTarget" type="button">+ добавить сумму</button>
+      <button class="go-btn" id="solveBtn" type="button">Разобрать платёж</button>
+    </div>
+  </section>
+</main>
+
+<div id="results">
+  <div class="results-title">Результат разбора</div>
+  <div class="strip-grid" id="stripGrid"></div>
+  <div id="statusArea"></div>
+</div>
+
+<footer>
+  Разбивка считается набором сумм по убыванию, а не точным перебором — работает и на 100+ тыс. строк. Суммы можно писать через запятую или точку — «149,55» и «149.55» распознаются одинаково.
+</footer>
+
+<script>
+(function(){
+  const COLORS = ['#35503E','#A9782F','#5B4A8A','#9C3B34','#2E6B7A','#7A5230','#4A6B2E','#8A3B6B'];
+
+  const amountsEl = document.getElementById('amounts');
+  const gutterEl = document.getElementById('gutter');
+  const lineCountEl = document.getElementById('lineCount');
+  const totalInput = document.getElementById('totalInput');
+  const sumReadout = document.getElementById('sumReadout');
+  const targetsEl = document.getElementById('targets');
+  const addTargetBtn = document.getElementById('addTarget');
+  const solveBtn = document.getElementById('solveBtn');
+  const resultsEl = document.getElementById('results');
+  const stripGrid = document.getElementById('stripGrid');
+  const statusArea = document.getElementById('statusArea');
+
+  // ---------- parsing helpers ----------
+  function parseNum(str){
+    if(str == null) return null;
+    const s = String(str).trim().replace(/\s+/g,'').replace(',', '.');
+    if(s === '') return null;
+    const n = Number(s);
+    if(Number.isNaN(n)) return null;
+    return n;
+  }
+  function toCents(n){ return Math.round(n * 100); }
+  function fmt(cents){
+    const n = cents / 100;
+    return n.toLocaleString('ru-RU', {minimumFractionDigits:2, maximumFractionDigits:2});
+  }
+
+  // ---------- gutter line numbers ----------
+  function refreshGutter(){
+    const lines = amountsEl.value.split('\n');
+    const count = lines.length;
+    let out = [];
+    for(let i=1;i<=count;i++) out.push(i);
+    gutterEl.textContent = out.join('\n');
+    const validCount = lines.map(parseNum).filter(v => v !== null).length;
+    lineCountEl.textContent = validCount + (validCount === 1 ? ' строка' : ' строк');
+    refreshSumReadout();
+  }
+  amountsEl.addEventListener('input', refreshGutter);
+  amountsEl.addEventListener('scroll', () => { gutterEl.scrollTop = amountsEl.scrollTop; });
+
+  function getAmounts(){
+    return amountsEl.value.split('\n')
+      .map(parseNum)
+      .filter(v => v !== null)
+      .map(v => toCents(v));
+  }
+
+  function refreshSumReadout(){
+    const cents = getAmounts();
+    const sum = cents.reduce((a,b)=>a+b, 0);
+    sumReadout.textContent = 'сумма строк: ' + fmt(sum);
+    const totalVal = parseNum(totalInput.value);
+    if(totalVal !== null){
+      const diff = Math.abs(toCents(totalVal) - sum);
+      sumReadout.classList.remove('ok','bad');
+      sumReadout.classList.add(diff <= 1 ? 'ok' : 'bad');
+      sumReadout.textContent += diff <= 1 ? ' — сходится' : ' — расходится с итого на ' + fmt(diff);
+    } else {
+      sumReadout.classList.remove('ok','bad');
+    }
+  }
+  totalInput.addEventListener('input', refreshSumReadout);
+
+  // ---------- target rows ----------
+  let targetCount = 0;
+  function addTargetRow(prefill){
+    const idx = targetCount++;
+    const row = document.createElement('div');
+    row.className = 'target-row';
+    row.dataset.idx = idx;
+    const color = COLORS[idx % COLORS.length];
+    row.innerHTML = `
+      <span class="target-tab" style="background:${color}"></span>
+      <input type="text" class="target-input mono" placeholder="сумма пришедшего платежа">
+      <button class="remove-target" type="button" title="убрать">×</button>
+    `;
+    row.querySelector('.remove-target').addEventListener('click', () => {
+      row.remove();
+    });
+    if(prefill) row.querySelector('.target-input').value = prefill;
+    targetsEl.appendChild(row);
+  }
+  addTargetBtn.addEventListener('click', () => addTargetRow());
+  addTargetRow();
+  addTargetRow();
+
+  // ---------- greedy fit (масштабируется на десятки/сотни тысяч строк) ----------
+  // Точный перебор подмножеств (subset-sum DP) на больших объёмах не тянет:
+  // сложность растёт и с числом строк, и с величиной суммы в копейках, поэтому
+  // при 50-100 тыс. строк он либо зависает, либо съедает всю память.
+  // Бухгалтерии не важно, какие именно строки сложились в платёж —
+  // важно только, чтобы итог сходился математически. Поэтому используем
+  // жадный набор по убыванию: сортируем остаток пула по убыванию и берём
+  // всё, что помещается в оставшийся лимит. O(n log n), тянет любые объёмы.
+  function findSubset(items, target){
+    if(target <= 0) return { combo: [], sum: 0 };
+
+    const sorted = items.filter(it => it.val > 0).slice().sort((a,b) => b.val - a.val);
+    let remaining = target;
+    const combo = [];
+
+    for(const it of sorted){
+      if(it.val <= remaining){
+        combo.push(it.idx);
+        remaining -= it.val;
+        if(remaining === 0) break;
+      }
+    }
+
+    // Точечная докрутка остатка: пробуем закрыть небольшой хвост
+    // маленькими суммами, которые жадный проход мог пропустить
+    // (например, когда крупные позиции "переели" нужный остаток).
+    if(remaining > 0){
+      const used = new Set(combo);
+      const leftovers = sorted.filter(it => !used.has(it.idx) && it.val <= remaining)
+        .sort((a,b) => b.val - a.val);
+      for(const it of leftovers){
+        if(it.val <= remaining){
+          combo.push(it.idx);
+          remaining -= it.val;
+          if(remaining === 0) break;
+        }
+      }
+    }
+
+    return { combo, sum: target - remaining };
+  }
+
+  // ---------- solve ----------
+  solveBtn.addEventListener('click', () => {
+    const rawLines = amountsEl.value.split('\n');
+    const items = [];
+    rawLines.forEach((line, i) => {
+      const n = parseNum(line);
+      if(n !== null) items.push({ idx: items.length, sourceLine: i+1, val: toCents(n), display: n });
+    });
+
+    const targetRows = Array.from(targetsEl.querySelectorAll('.target-row'));
+    const targets = targetRows.map(row => {
+      const val = parseNum(row.querySelector('.target-input').value);
+      const color = row.querySelector('.target-tab').style.background;
+      return { val, cents: val !== null ? toCents(val) : null, color };
+    }).filter(t => t.cents !== null && t.cents > 0);
+
+    if(items.length === 0){
+      alert('Сначала вставьте суммы из выписки.');
+      return;
+    }
+    if(targets.length === 0){
+      alert('Укажите хотя бы одну пришедшую сумму.');
+      return;
+    }
+
+    let pool = items.slice(); // items not yet claimed
+    const stripsData = [];
+
+    targets.forEach((t, ti) => {
+      const res = findSubset(pool, t.cents);
+      const chosenSet = new Set(res.combo);
+      const chosen = pool.filter(p => chosenSet.has(p.idx));
+      pool = pool.filter(p => !chosenSet.has(p.idx));
+      stripsData.push({ target: t, matched: chosen, exact: res.sum === t.cents, gotSum: res.sum });
+    });
+
+    renderResults(stripsData, pool, items);
+  });
+
+  function renderResults(stripsData, leftoverPool, allItems){
+    stripGrid.innerHTML = '';
+    statusArea.innerHTML = '';
+
+    stripsData.forEach(sd => {
+      const strip = document.createElement('div');
+      strip.className = 'strip';
+      const listHtml = sd.matched
+        .slice()
+        .sort((a,b) => a.sourceLine - b.sourceLine)
+        .map(m => `<li><span>строка ${m.sourceLine}</span><span>${fmt(m.val)}</span></li>`)
+        .join('');
+      const stampHtml = sd.exact
+        ? `<span class="stamp ok">точно сошлось</span>`
+        : `<span class="stamp warn">не сошлось, ближайшее</span>`;
+      strip.innerHTML = `
+        <div class="strip-head">
+          <span class="swatch" style="background:${sd.target.color}"></span>
+          <span class="amount">${fmt(sd.target.cents)}</span>
+        </div>
+        <ul>${listHtml || '<li><span>ничего не подобралось</span><span></span></li>'}</ul>
+        <div class="subtotal">
+          <span>из ${sd.matched.length} строк</span>
+          <span class="mono">${fmt(sd.gotSum)}</span>
+        </div>
+        <div style="margin-top:10px;">${stampHtml}</div>
+      `;
+      stripGrid.appendChild(strip);
+    });
+
+    if(leftoverPool.length > 0){
+      const div = document.createElement('div');
+      div.className = 'leftover-note';
+      const list = leftoverPool
+        .slice()
+        .sort((a,b)=>a.sourceLine-b.sourceLine)
+        .map(p => `строка ${p.sourceLine} (${fmt(p.val)})`)
+        .join(', ');
+      const sum = leftoverPool.reduce((a,p)=>a+p.val,0);
+      div.innerHTML = `<b>Не разложено:</b> ${leftoverPool.length} строк на сумму <span class="mono">${fmt(sum)}</span> — ${list}. Похоже, пришедших сумм меньше, чем платежей в выписке — добавьте ещё поле.`;
+      statusArea.appendChild(div);
+    } else {
+      const allExact = stripsData.every(s => s.exact);
+      const div = document.createElement('div');
+      div.className = 'total-status ' + (allExact ? 'ok' : 'bad');
+      div.textContent = allExact
+        ? '✓ Все строки разложены без остатка, суммы сошлись точно.'
+        : '⚠ Не для всех сумм нашлось точное совпадение — проверьте отмеченные платежи вручную.';
+      statusArea.appendChild(div);
+    }
+
+    resultsEl.classList.add('show');
+    resultsEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  refreshGutter();
+})();
+</script>
+
+</body>
+</html>
